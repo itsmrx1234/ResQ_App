@@ -1,10 +1,13 @@
 import { Buffer } from 'buffer';
-import crypto from 'crypto';
+import { sha256 } from '@noble/hashes/sha256';
+import { aes256gcm } from '@noble/ciphers/aes';
+import * as Random from 'expo-random';
 import * as SecureStore from 'expo-secure-store';
 
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32;
 const IV_LENGTH = 12;
+const TAG_LENGTH = 16;
 const KEY_ID = 'resqapp.expo.encryption';
 const LEGACY_KEY = process.env.LEGACY_ENCRYPTION_KEY || 'ENCRYPTION_KEY';
 
@@ -12,8 +15,8 @@ const normalizeKey = (rawKey?: string | Buffer | null) => {
   if (!rawKey) return null;
   const buffer = Buffer.isBuffer(rawKey) ? rawKey : Buffer.from(rawKey, 'base64');
   if (buffer.length === KEY_LENGTH) return buffer;
-  const hash = crypto.createHash('sha256').update(buffer).digest();
-  return hash.subarray(0, KEY_LENGTH);
+  const hash = sha256(buffer);
+  return Buffer.from(hash.subarray(0, KEY_LENGTH));
 };
 
 export const loadOrCreateKey = async (): Promise<Buffer> => {
@@ -22,7 +25,8 @@ export const loadOrCreateKey = async (): Promise<Buffer> => {
     return Buffer.from(stored, 'base64');
   }
   const envKey = process.env.RESQAPP_ENCRYPTION_KEY;
-  const key = normalizeKey(envKey) || crypto.randomBytes(KEY_LENGTH);
+  const key =
+    normalizeKey(envKey) || Buffer.from(await Random.getRandomBytesAsync(KEY_LENGTH));
   await SecureStore.setItemAsync(KEY_ID, key.toString('base64'));
   return key;
 };
@@ -39,10 +43,11 @@ export type CipherPayload = {
 
 export const encryptBytes = async (buffer: Buffer): Promise<CipherPayload> => {
   const key = await loadOrCreateKey();
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  const ciphertext = Buffer.concat([cipher.update(buffer), cipher.final()]);
-  const tag = cipher.getAuthTag();
+  const iv = Buffer.from(await Random.getRandomBytesAsync(IV_LENGTH));
+  const cipher = aes256gcm(key, iv);
+  const ciphertextWithTag = Buffer.from(cipher.encrypt(buffer));
+  const ciphertext = ciphertextWithTag.subarray(0, ciphertextWithTag.length - TAG_LENGTH);
+  const tag = ciphertextWithTag.subarray(ciphertextWithTag.length - TAG_LENGTH);
   return {
     ciphertext,
     iv: iv.toString('base64'),
@@ -62,9 +67,13 @@ export const decryptBytes = async (
   const iv = Buffer.from(payload.iv, 'base64');
   const tag = Buffer.from(payload.tag, 'base64');
   const attempt = (candidate: Buffer) => {
-    const decipher = crypto.createDecipheriv(ALGORITHM, candidate, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(payload.ciphertext), decipher.final()]);
+    const decipher = aes256gcm(candidate, iv);
+    const combined = Buffer.concat([payload.ciphertext, tag]);
+    const plaintext = decipher.decrypt(combined);
+    if (!plaintext) {
+      throw new Error('Decryption failed');
+    }
+    return Buffer.from(plaintext);
   };
 
   try {
