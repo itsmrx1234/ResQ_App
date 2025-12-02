@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Buffer } from 'buffer';
 import {
   View,
   Text,
@@ -11,20 +12,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { storage, db } from '../config/firebase';
+import { encryptBlob, decryptToBlob } from '../utils/encryption';
 
 const FileSave: React.FC = () => {
   const [uploading, setUploading] = useState(false);
 
   const handleFilePick = async () => {
     try {
-      // Ask for permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'We need access to your files to upload.');
         return;
       }
 
-      // Launch file picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: false,
@@ -45,25 +45,27 @@ const FileSave: React.FC = () => {
 
       setUploading(true);
 
-      // Convert URI to Blob
       const response = await fetch(fileUri);
       const blob = await response.blob();
+      const encrypted = await encryptBlob(blob);
 
-      // Upload to Firebase Storage
       const fileRef = ref(storage, `uploads/${Date.now()}_${fileName}`);
-      await uploadBytes(fileRef, blob);
+      await uploadBytes(fileRef, encrypted.blob, { contentType: 'application/octet-stream' });
       const url = await getDownloadURL(fileRef);
 
-      // Store metadata in Firestore
       await addDoc(collection(db, 'uploadedFiles'), {
         name: fileName,
         type: fileType,
         url,
+        iv: encrypted.iv,
+        tag: encrypted.tag,
+        algorithm: encrypted.algorithm,
+        keyVersion: encrypted.keyVersion,
         uploadedAt: serverTimestamp(),
       });
 
       setUploading(false);
-      Alert.alert('✅ Success', 'File uploaded successfully!');
+      Alert.alert('✅ Success', 'File uploaded securely!');
     } catch (err) {
       console.error('❌ Upload Error:', err);
       setUploading(false);
@@ -74,6 +76,22 @@ const FileSave: React.FC = () => {
         Alert.alert('❌ Error', 'Something went wrong.');
       }
     }
+  };
+
+  const downloadAndDecrypt = async ({ url, iv, tag, algorithm }: { url: string; iv: string; tag: string; algorithm: string }) => {
+    const response = await fetch(url);
+    const cipherBuffer = Buffer.from(await response.arrayBuffer());
+    const { blob, migrated, rotated } = await decryptToBlob({
+      ciphertext: cipherBuffer,
+      iv,
+      tag,
+      algorithm,
+      keyVersion: 'secure',
+    });
+    if (migrated) {
+      console.info('Re-encrypted payload available', rotated);
+    }
+    return blob;
   };
 
   return (
