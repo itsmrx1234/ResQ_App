@@ -10,6 +10,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useRouter } from "expo-router";
+import { encryptText } from "../utils/encryption";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -38,9 +39,12 @@ export default function RegisterScreen() {
     }
 
     try {
+      const encryptedUsername = encryptText(username);
+      const encryptedPin = encryptText(pin);
+
       await AsyncStorage.multiSet([
-        ["username", username],
-        ["userPin", pin],
+        ["username", encryptedUsername],
+        ["userPin", encryptedPin],
         ["isRegistered", "true"],
       ]);
 

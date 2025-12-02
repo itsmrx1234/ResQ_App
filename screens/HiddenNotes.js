@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { encryptText } from '../utils/crypto';
 
 const HiddenNotes = () => {
   const [note, setNote] = useState('');
@@ -15,9 +16,12 @@ const HiddenNotes = () => {
 
     try {
       setLoading(true);
+      const encryptedNote = encryptText(note);
+
       await addDoc(collection(db, 'hidden_notes'), {
-        content: note,
+        content: encryptedNote,
         createdAt: serverTimestamp(),
+        encryption: 'AES',
       });
       setNote('');
       Alert.alert('Note saved securely');

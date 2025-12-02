@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { decryptText } from '../utils/crypto';
 
 const Calculator = ({ navigation }) => {
   const [input, setInput] = useState('');
@@ -57,7 +58,8 @@ const Calculator = ({ navigation }) => {
 
       // Case 2: Match stored PIN
       const storedPin = await AsyncStorage.getItem('userPin');
-      if (storedPin && onlyDigits === storedPin) {
+      const decryptedPin = decryptText(storedPin);
+      if (decryptedPin && onlyDigits === decryptedPin) {
         setInput('');
         setExpression('');
         navigation.replace('Home');

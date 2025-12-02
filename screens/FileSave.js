@@ -12,6 +12,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 import { storage, db } from '../config/firebase';
+import { encryptArrayBuffer } from '../utils/crypto';
 
 const FileSave = () => {
   const [uploading, setUploading] = useState(false);
@@ -38,10 +39,12 @@ const FileSave = () => {
       // Convert to blob
       const response = await fetch(fileUri);
       const blob = await response.blob();
+      const encryptedPayload = encryptArrayBuffer(await blob.arrayBuffer());
+      const encryptedBlob = new Blob([encryptedPayload], { type: 'text/plain' });
 
       // Upload to Firebase
       const fileRef = ref(storage, `uploads/${Date.now()}_${fileName}`);
-      await uploadBytes(fileRef, blob);
+      await uploadBytes(fileRef, encryptedBlob);
       const url = await getDownloadURL(fileRef);
 
       // Store metadata in Firestore
@@ -50,6 +53,7 @@ const FileSave = () => {
         type: fileType,
         url,
         uploadedAt: serverTimestamp(),
+        encrypted: true,
       });
 
       setUploading(false);

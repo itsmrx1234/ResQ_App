@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { encryptText } from '../utils/crypto';
 
 const RegisterScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
@@ -32,9 +33,12 @@ const RegisterScreen = ({ navigation }) => {
     }
 
     try {
+      const encryptedUsername = encryptText(username);
+      const encryptedPin = encryptText(pin);
+
       await AsyncStorage.multiSet([
-        ['username', username],
-        ['userPin', pin],
+        ['username', encryptedUsername],
+        ['userPin', encryptedPin],
         ['isRegistered', 'true']  // <-- Mark as registered
       ]);
       Alert.alert('Success', 'Account created!', [
