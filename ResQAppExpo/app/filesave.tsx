@@ -11,6 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { storage, db } from '../config/firebase';
+import { encryptArrayBuffer } from '../utils/encryption';
 
 const FileSave: React.FC = () => {
   const [uploading, setUploading] = useState(false);
@@ -48,10 +49,12 @@ const FileSave: React.FC = () => {
       // Convert URI to Blob
       const response = await fetch(fileUri);
       const blob = await response.blob();
+      const encryptedPayload = encryptArrayBuffer(await blob.arrayBuffer());
+      const encryptedBlob = new Blob([encryptedPayload], { type: 'text/plain' });
 
       // Upload to Firebase Storage
       const fileRef = ref(storage, `uploads/${Date.now()}_${fileName}`);
-      await uploadBytes(fileRef, blob);
+      await uploadBytes(fileRef, encryptedBlob);
       const url = await getDownloadURL(fileRef);
 
       // Store metadata in Firestore
@@ -60,6 +63,7 @@ const FileSave: React.FC = () => {
         type: fileType,
         url,
         uploadedAt: serverTimestamp(),
+        encrypted: true,
       });
 
       setUploading(false);

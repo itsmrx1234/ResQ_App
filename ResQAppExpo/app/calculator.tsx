@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { decryptText } from "../utils/encryption";
 
 export default function Calculator() {
   const [input, setInput] = useState("");
@@ -59,7 +60,8 @@ export default function Calculator() {
 
       // Case 2: Match stored PIN
       const storedPin = await AsyncStorage.getItem("userPin");
-      if (storedPin && onlyDigits === storedPin) {
+      const decryptedPin = decryptText(storedPin);
+      if (decryptedPin && onlyDigits === decryptedPin) {
         setInput("");
         setExpression("");
         router.replace("/home");

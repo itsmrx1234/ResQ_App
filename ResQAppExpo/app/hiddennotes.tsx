@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { encryptText } from '../utils/encryption';
 
 const HiddenNotes = () => {
   const [note, setNote] = useState('');
@@ -28,9 +29,12 @@ const HiddenNotes = () => {
       setLoading(true);
       Keyboard.dismiss(); // ✅ hides keyboard after save
 
+      const encryptedNote = encryptText(trimmedNote);
+
       await addDoc(collection(db, 'hidden_notes'), {
-        content: trimmedNote,
+        content: encryptedNote,
         createdAt: serverTimestamp(),
+        encryption: 'AES',
       });
 
       setNote('');
