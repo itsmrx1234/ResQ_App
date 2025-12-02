@@ -73,3 +73,10 @@ npx react-native link
 ✔️ Real-time Chat Final Fixes
 ⬜ Expert Dashboard
 ⬜ Dynamic App Icon/Name Switching
+
+🔐 Secure encryption helpers
+
+* File uploads are encrypted with AES-256-GCM before being sent to Firebase Storage. Encrypted bytes are stored as binary blobs (application/octet-stream) so binary fidelity is preserved.
+* Key material is pulled from platform-secure storage (iOS Keychain/Android Keystore via `react-native-keychain` for the RN app and `expo-secure-store` for Expo). If no key exists, a fresh one is generated and persisted; setting `RESQAPP_ENCRYPTION_KEY` allows bootstrapping from an environment secret, and `LEGACY_ENCRYPTION_KEY` supports decrypting older payloads.
+* Firestore metadata attached to each upload now includes the IV, authentication tag, algorithm, and key version. When decrypting, if data is unlocked with the legacy key the helpers return a rotated payload that can be saved back to migrate data transparently.
+* React Native helper: `utils/crypto.js` exports `encryptBlob`, `decryptToBlob`, and low-level byte helpers; Expo helper mirrors this API in `ResQAppExpo/utils/encryption.ts`.
